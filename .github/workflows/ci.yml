@@ -32,6 +32,8 @@ jobs:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
           args: --severity-threshold=high
+          command: test
+          working-directory: services
 
   test:
     name: Run Tests
