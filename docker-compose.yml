@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  ecommerce:
+    build: 
+      context: ./services/ecommerce
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    networks:
+      - app-network
+    depends_on:
+      - store
+      - exchange
+      - fidelity
+      - redis
+
+  store:
+    build:
+      context: ./services/store
+      dockerfile: Dockerfile
+    ports:
+      - "8081:8081"
+    networks:
+      - app-network
+    depends_on:
+      - redis
+
+  exchange:
+    build:
+      context: ./services/exchange
+      dockerfile: Dockerfile
+    ports:
+      - "8082:8082"
+    deploy:
+      replicas: 3
+    networks:
+      - app-network
+    depends_on:
+      - redis
+
+  fidelity:
+    build:
+      context: ./services/fidelity
+      dockerfile: Dockerfile
+    ports:
+      - "8083:8083"
+    networks:
+      - app-network
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7.0-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - app-network
+    volumes:
+      - redis-data:/data
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  redis-data:

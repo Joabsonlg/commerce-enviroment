@@ -1,0 +1,23 @@
+spring:
+  application:
+    name: fidelity-service
+  config:
+    import: optional:file:../application.yml
+
+server:
+  port: 8083
+
+# Configuração para fila de bônus pendentes
+spring:
+  redis:
+    host: redis
+    port: 6379
+  task:
+    scheduling:
+      pool:
+        size: 5
+    execution:
+      pool:
+        core-size: 2
+        max-size: 4
+        queue-capacity: 50

@@ -1,0 +1,167 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  validate:
+    name: Validate Code
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+      
+      - name: Code Quality Check
+        run: |
+          cd services
+          mvn checkstyle:check
+          mvn spotbugs:check
+      
+      - name: Security Scan
+        uses: snyk/actions/maven@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high
+
+  test:
+    name: Run Tests
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+      
+      - name: Start Redis
+        uses: supercharge/redis-github-action@1.5.0
+        
+      - name: Run Unit Tests
+        run: |
+          cd services
+          mvn test
+      
+      - name: Generate Test Reports
+        run: |
+          cd services
+          mvn jacoco:report
+        if: success() || failure()
+      
+      - name: Upload Test Results
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-results
+          path: |
+            **/target/site/jacoco/
+            **/target/surefire-reports/
+        if: always()
+
+  build:
+    name: Build Services
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [ecommerce, store, exchange, fidelity]
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+      
+      - name: Build Service
+        run: |
+          cd services/${{ matrix.service }}
+          mvn clean package -DskipTests
+      
+      - name: Build Docker Image
+        run: |
+          cd services/${{ matrix.service }}
+          docker build -t ${{ matrix.service }}-service:${{ github.sha }} .
+      
+      - name: Save Docker Image
+        run: |
+          docker save ${{ matrix.service }}-service:${{ github.sha }} > ${{ matrix.service }}-service.tar
+      
+      - name: Upload Docker Image
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.service }}-image
+          path: ${{ matrix.service }}-service.tar
+
+  integration-test:
+    name: Integration Tests
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Download All Images
+        uses: actions/download-artifact@v3
+        with:
+          path: ./images
+      
+      - name: Load Docker Images
+        run: |
+          for service in ecommerce store exchange fidelity; do
+            docker load < ./images/$service-image/$service-service.tar
+          done
+      
+      - name: Start Services
+        run: |
+          docker-compose -f docker-compose.yml up -d
+      
+      - name: Run Integration Tests
+        run: |
+          cd services
+          mvn verify -P integration-tests
+      
+      - name: Upload Integration Test Results
+        uses: actions/upload-artifact@v3
+        with:
+          name: integration-test-results
+          path: **/target/failsafe-reports/
+        if: always()
+
+  sonar:
+    name: Sonar Analysis
+    needs: [test, integration-test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      
+      - name: Download Test Results
+        uses: actions/download-artifact@v3
+        with:
+          name: test-results
+      
+      - name: SonarCloud Scan
+        run: |
+          cd services
+          mvn sonar:sonar \
+            -Dsonar.projectKey=fault-tolerant-ecommerce \
+            -Dsonar.organization=your-org \
+            -Dsonar.host.url=https://sonarcloud.io \
+            -Dsonar.login=${{ secrets.SONAR_TOKEN }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

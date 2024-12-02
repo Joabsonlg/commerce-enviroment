@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FindBugsFilter>
+    <!-- Ignore test classes -->
+    <Match>
+        <Class name="~.*\.*Test" />
+    </Match>
+
+    <!-- Ignore generated classes -->
+    <Match>
+        <Class name="~.*\.*Generated.*" />
+    </Match>
+
+    <!-- Ignore configuration classes -->
+    <Match>
+        <Class name="~.*\.*Config" />
+    </Match>
+
+    <!-- Ignore serialization warnings for DTOs -->
+    <Match>
+        <Bug pattern="SE_NO_SERIALVERSIONID" />
+        <Class name="~.*\.dto\..*" />
+    </Match>
+
+    <!-- Ignore null pointer warnings in builder pattern -->
+    <Match>
+        <Bug pattern="NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE" />
+        <Class name="~.*\..*Builder" />
+    </Match>
+
+    <!-- Ignore EI_EXPOSE_REP and EI_EXPOSE_REP2 for immutable objects -->
+    <Match>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2" />
+        <Class name="~.*\.model\..*" />
+    </Match>
+
+    <!-- Ignore DM_CONVERT_CASE for locale-insensitive operations -->
+    <Match>
+        <Bug pattern="DM_CONVERT_CASE" />
+        <Method name="~(get|set|is).*" />
+    </Match>
+</FindBugsFilter>

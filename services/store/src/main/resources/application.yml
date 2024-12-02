@@ -1,0 +1,8 @@
+spring:
+  application:
+    name: store-service
+  config:
+    import: optional:file:../application.yml
+
+server:
+  port: 8081
