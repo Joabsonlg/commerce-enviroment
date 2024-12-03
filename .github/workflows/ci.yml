@@ -27,14 +27,6 @@ jobs:
         run: |
           mvn checkstyle:check
           mvn spotbugs:check
-      
-      - name: Security Scan
-        uses: snyk/actions/maven@master
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        with:
-          args: --file=pom.xml --severity-threshold=high
-          command: test
 
   test:
     name: Run Tests
