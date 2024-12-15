@@ -29,7 +29,6 @@ public class ExternalServicesHealthIndicator implements HealthIndicator {
     public Health health() {
         Health.Builder health = new Health.Builder();
 
-        // Check Store Service
         try {
             restTemplate.getForObject(storeUrl + "/actuator/health", String.class);
             health.withDetail("store", "UP");
@@ -39,7 +38,6 @@ public class ExternalServicesHealthIndicator implements HealthIndicator {
             health.down();
         }
 
-        // Check Exchange Service
         try {
             restTemplate.getForObject(exchangeUrl + "/actuator/health", String.class);
             health.withDetail("exchange", "UP");
@@ -49,7 +47,6 @@ public class ExternalServicesHealthIndicator implements HealthIndicator {
             health.down();
         }
 
-        // Check Fidelity Service
         try {
             restTemplate.getForObject(fidelityUrl + "/actuator/health", String.class);
             health.withDetail("fidelity", "UP");

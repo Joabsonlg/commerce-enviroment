@@ -54,9 +54,8 @@ public class ExchangeController {
         }
     }
 
-    @Operation(hidden = true) // Hide fallback method from API documentation
+    @Operation(hidden = true)
     private ResponseEntity<ExchangeRate> getFallbackRate(String from, String to, Exception e) {
-        // Fallback to a default rate of 1.0 when service is unavailable
         return ResponseEntity.ok(new ExchangeRate(
             from,
             to,

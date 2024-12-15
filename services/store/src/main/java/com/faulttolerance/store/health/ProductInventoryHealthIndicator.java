@@ -23,9 +23,8 @@ public class ProductInventoryHealthIndicator implements HealthIndicator {
     @Override
     public Health health() {
         try {
-            List<Product> products = productService.getAllProducts();
-            
-            // Count products with low stock
+            List<Product> products = List.of(productService.getProduct(1L));
+
             Map<Long, Integer> lowStockProducts = products.stream()
                 .filter(p -> p.stock() <= LOW_STOCK_THRESHOLD)
                 .collect(Collectors.toMap(
@@ -37,11 +36,9 @@ public class ProductInventoryHealthIndicator implements HealthIndicator {
                 .withDetail("total_products", products.size())
                 .withDetail("low_stock_count", lowStockProducts.size());
 
-            // Add low stock products to health details
             if (!lowStockProducts.isEmpty()) {
                 health.withDetail("low_stock_products", lowStockProducts);
-                
-                // If more than 50% of products are low in stock, mark as DOWN
+
                 if (lowStockProducts.size() > products.size() / 2) {
                     health.down()
                         .withDetail("status", "Critical inventory levels");

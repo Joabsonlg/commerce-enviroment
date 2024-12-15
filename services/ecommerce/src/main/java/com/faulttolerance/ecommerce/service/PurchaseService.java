@@ -38,19 +38,16 @@ public class PurchaseService {
         return CompletableFuture.supplyAsync(() -> {
             logger.info("Processing purchase for product: {}", request.productId());
 
-            // 1. Get product details
             var product = restTemplate.getForObject(
                 storeUrl + "/product/" + request.productId(),
                 ProductResponse.class
             );
 
-            // 2. Get exchange rate
             var exchangeRate = restTemplate.getForObject(
                 exchangeUrl + "/exchange?from=" + product.currency() + "&to=" + request.currency(),
                 ExchangeResponse.class
             );
 
-            // 3. Process sale
             var saleRequest = new SaleRequest(
                 request.productId(),
                 request.quantity(),
@@ -63,7 +60,6 @@ public class PurchaseService {
                 SaleResponse.class
             );
 
-            // 4. Process bonus points (optional)
             Integer bonusPoints = 0;
             try {
                 var bonus = restTemplate.postForObject(
@@ -105,7 +101,6 @@ public class PurchaseService {
         ));
     }
 
-    // Internal record classes for service communication
     private record ProductResponse(Long id, BigDecimal price, String currency) {}
     private record ExchangeResponse(BigDecimal rate) {}
     private record SaleRequest(Long productId, Integer quantity, BigDecimal price, BigDecimal exchangeRate) {}

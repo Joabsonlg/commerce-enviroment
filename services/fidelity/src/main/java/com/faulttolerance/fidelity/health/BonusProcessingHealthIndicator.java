@@ -1,47 +1,42 @@
 package com.faulttolerance.fidelity.health;
 
+import com.faulttolerance.fidelity.repository.BonusPointsRepository;
 import org.springframework.boot.actuate.health.Health;
 import org.springframework.boot.actuate.health.HealthIndicator;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
-
-import java.util.Set;
 
 @Component
 public class BonusProcessingHealthIndicator implements HealthIndicator {
 
-    private final RedisTemplate<String, Object> redisTemplate;
+    private final BonusPointsRepository bonusPointsRepository;
 
-    public BonusProcessingHealthIndicator(RedisTemplate<String, Object> redisTemplate) {
-        this.redisTemplate = redisTemplate;
+    public BonusProcessingHealthIndicator(BonusPointsRepository bonusPointsRepository) {
+        this.bonusPointsRepository = bonusPointsRepository;
     }
 
     @Override
     public Health health() {
         try {
-            // Check Redis connection
-            boolean redisConnected = redisTemplate.getConnectionFactory().getConnection().ping() != null;
-            
-            // Get pending bonus count
-            Set<String> pendingKeys = redisTemplate.keys("bonus:*");
-            int pendingCount = pendingKeys != null ? pendingKeys.size() : 0;
-            
-            Health.Builder health = Health.up()
-                .withDetail("redis_connected", redisConnected)
-                .withDetail("pending_bonus_count", pendingCount);
+            long count = bonusPointsRepository.count();
 
-            // If there are too many pending bonuses, mark as DOWN
+            long pendingCount = bonusPointsRepository.countByStatus("PENDING");
+
+            Health.Builder health = Health.up()
+                    .withDetail("mongo_connected", true)
+                    .withDetail("total_bonus_count", count)
+                    .withDetail("pending_bonus_count", pendingCount);
+
             if (pendingCount > 1000) {
                 health.down()
-                    .withDetail("status", "Too many pending bonus points")
-                    .withDetail("threshold", 1000);
+                        .withDetail("status", "Too many pending bonus points")
+                        .withDetail("threshold", 1000);
             }
 
             return health.build();
         } catch (Exception e) {
             return Health.down()
-                .withDetail("error", e.getMessage())
-                .build();
+                    .withDetail("error", e.getMessage())
+                    .build();
         }
     }
 }

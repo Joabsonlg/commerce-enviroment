@@ -1,5 +1,6 @@
 package com.faulttolerance.store.model;
 
+import java.io.Serializable;
 import java.math.BigDecimal;
 
 public record Product(
@@ -8,4 +9,4 @@ public record Product(
     BigDecimal price,
     String currency,
     Integer stock
-) {}
+) implements Serializable {}
