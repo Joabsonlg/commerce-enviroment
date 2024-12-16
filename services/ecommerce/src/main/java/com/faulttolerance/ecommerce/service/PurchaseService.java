@@ -44,7 +44,7 @@ public class PurchaseService {
             );
 
             var exchangeRate = restTemplate.getForObject(
-                exchangeUrl + "/exchange?from=" + product.currency() + "&to=" + request.currency(),
+                exchangeUrl + "/rate?from=" + product.currency() + "&to=" + request.currency(),
                 ExchangeResponse.class
             );
 

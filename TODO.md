@@ -2,10 +2,10 @@
 
 ## 1. Setup Inicial
 - [x] Criar estrutura base do projeto
-- [x] Configurar Docker e Docker Compose
-- [x] Definir rede Docker para comunicação entre serviços
+- [ ] Configurar Docker e Docker Compose
+- [ ] Definir rede Docker para comunicação entre serviços
 - [x] Configurar ambiente de desenvolvimento
-- [x] Criar Dockerfile base para os serviços
+- [ ] Criar Dockerfile base para os serviços
 
 ## 2. Desenvolvimento dos Serviços
 
@@ -15,7 +15,7 @@
 - [x] Implementar circuit breaker para chamadas aos serviços
 - [x] Implementar lógica de orquestração
 - [x] Adicionar logs e métricas
-- [x] Implementar tratamento de erros
+- [ ] Implementar tratamento de erros
 - [ ] Testes unitários
 
 ### 2.2 Store Service (`/product`, `/sell`)
@@ -35,7 +35,7 @@
 - [ ] Configurar replicação
 - [ ] Implementar load balancing
 - [x] Adicionar logs e métricas
-- [x] Implementar tratamento de erros
+- [ ] Implementar tratamento de erros
 - [ ] Testes unitários
 
 ### 2.4 Fidelity Service (`/bonus`)

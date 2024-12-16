@@ -1,5 +1,6 @@
 package com.faulttolerance.exchange.model;
 
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
@@ -7,7 +8,8 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 @Document(collection = "exchange_rates")
-public class ExchangeRate {
+public class ExchangeRate implements Serializable {
+    private static final long serialVersionUID = 1L;
     @Id
     private String id;
     private String fromCurrency;
