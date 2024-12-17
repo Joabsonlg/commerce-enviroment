@@ -51,9 +51,9 @@ public class PurchaseService {
             var saleRequest = new SaleRequest(
                 request.productId(),
                 request.quantity(),
-                product.price(),
                 exchangeRate.rate()
             );
+
             var sale = restTemplate.postForObject(
                 storeUrl + "/sell",
                 saleRequest,
@@ -103,7 +103,7 @@ public class PurchaseService {
 
     private record ProductResponse(Long id, BigDecimal price, String currency) {}
     private record ExchangeResponse(BigDecimal rate) {}
-    private record SaleRequest(Long productId, Integer quantity, BigDecimal price, BigDecimal exchangeRate) {}
+    private record SaleRequest(Long productId, Integer quantity, BigDecimal exchangeRate) {}
     private record SaleResponse(Long orderId, BigDecimal finalPrice) {}
     private record BonusResponse(Integer points) {}
 }

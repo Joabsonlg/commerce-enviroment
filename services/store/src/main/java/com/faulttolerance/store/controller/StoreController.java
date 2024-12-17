@@ -2,6 +2,7 @@ package com.faulttolerance.store.controller;
 
 import com.faulttolerance.store.model.Product;
 import com.faulttolerance.store.model.Sale;
+import com.faulttolerance.store.model.SaleRequest;
 import com.faulttolerance.store.service.ProductService;
 import com.faulttolerance.store.service.SaleService;
 import io.micrometer.core.annotation.Timed;
@@ -56,14 +57,9 @@ public class StoreController {
     })
     @Timed(value = "sale.process", description = "Time taken to process sale")
     public ResponseEntity<Sale> processSale(
-            @Parameter(description = "Product ID", required = true)
-            @RequestParam Long productId,
-            @Parameter(description = "Quantity to purchase", required = true)
-            @RequestParam Integer quantity,
-            @Parameter(description = "Exchange rate for currency conversion", required = true)
-            @RequestParam BigDecimal exchangeRate) {
+            @RequestBody SaleRequest saleRequest) {
         try {
-            Sale sale = saleService.processSale(productId, quantity, exchangeRate);
+            Sale sale = saleService.processSale(saleRequest.productId(), saleRequest.quantity(), saleRequest.exchangeRate());
             return ResponseEntity.ok(sale);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.notFound().build();

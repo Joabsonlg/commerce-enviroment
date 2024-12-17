@@ -36,14 +36,17 @@ public class ExchangeService {
         exchangeRateRepository.save(new ExchangeRate("EUR", "BRL", new BigDecimal("6.29"), LocalDateTime.now()));
         exchangeRateRepository.save(new ExchangeRate("BRL", "USD", new BigDecimal("0.1656"), LocalDateTime.now()));
         exchangeRateRepository.save(new ExchangeRate("BRL", "EUR", new BigDecimal("0.1590"), LocalDateTime.now()));
-
     }
 
     @Cacheable(value = "exchangeRates", key = "#fromCurrency + '-' + #toCurrency")
     public ExchangeRate getExchangeRate(String fromCurrency, String toCurrency) {
-        if (Math.random() < 0.2) {
-            logger.error("Simulated failure in exchange rate service");
-            throw new RuntimeException("Exchange service temporarily unavailable");
+        if (Math.random() < 0.1) {
+            logger.error("Simulated CRASH failure in exchange rate service");
+            try {
+                Thread.sleep(Long.MAX_VALUE);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
         }
 
         try {

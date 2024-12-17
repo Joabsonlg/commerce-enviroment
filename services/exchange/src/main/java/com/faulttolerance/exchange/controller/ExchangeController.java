@@ -11,6 +11,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -23,29 +25,29 @@ import java.time.LocalDateTime;
 @Tag(name = "Exchange", description = "Currency exchange operations API")
 public class ExchangeController {
     private final ExchangeService exchangeService;
+    private final CacheManager cacheManager;
 
-    public ExchangeController(ExchangeService exchangeService) {
+    public ExchangeController(ExchangeService exchangeService, CacheManager cacheManager) {
         this.exchangeService = exchangeService;
+        this.cacheManager = cacheManager;
     }
 
     @GetMapping("/rate")
     @Operation(
-        summary = "Get exchange rate",
-        description = "Get the exchange rate between two currencies with retry mechanism and fallback"
+            summary = "Get exchange rate",
+            description = "Get the exchange rate between two currencies with retry mechanism and fallback"
     )
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Exchange rate retrieved successfully",
-            content = @Content(schema = @Schema(implementation = ExchangeRate.class))),
-        @ApiResponse(responseCode = "404", description = "Exchange rate not found"),
-        @ApiResponse(responseCode = "500", description = "Service temporarily unavailable, fallback rate returned")
+            @ApiResponse(responseCode = "200", description = "Exchange rate retrieved successfully",
+                    content = @Content(schema = @Schema(implementation = ExchangeRate.class))),
+            @ApiResponse(responseCode = "404", description = "Exchange rate not found"),
+            @ApiResponse(responseCode = "500", description = "Service temporarily unavailable, fallback rate returned")
     })
     @Timed(value = "exchange.rate", description = "Time taken to get exchange rate")
     @Retry(name = "exchangeRetry", fallbackMethod = "getFallbackRate")
     public ResponseEntity<ExchangeRate> getExchangeRate(
-            @Parameter(description = "Source currency code", required = true)
-            @RequestParam String from,
-            @Parameter(description = "Target currency code", required = true)
-            @RequestParam String to) {
+            @Parameter(description = "Source currency code", required = true) @RequestParam String from,
+            @Parameter(description = "Target currency code", required = true) @RequestParam String to) {
         try {
             ExchangeRate rate = exchangeService.getExchangeRate(from, to);
             return ResponseEntity.ok(rate);
@@ -56,11 +58,20 @@ public class ExchangeController {
 
     @Operation(hidden = true)
     private ResponseEntity<ExchangeRate> getFallbackRate(String from, String to, Exception e) {
+        Cache cache = cacheManager.getCache("exchangeRates");
+        if (cache != null) {
+            String key = from + "-" + to;
+            ExchangeRate cachedRate = cache.get(key, ExchangeRate.class);
+            if (cachedRate != null) {
+                return ResponseEntity.ok(cachedRate);
+            }
+        }
+
         return ResponseEntity.ok(new ExchangeRate(
-            from,
-            to,
-            BigDecimal.ONE,
-            LocalDateTime.now()
+                from,
+                to,
+                BigDecimal.ONE,
+                LocalDateTime.now()
         ));
     }
 }
