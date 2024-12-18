@@ -10,8 +10,8 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Service
 public class FidelityService {
@@ -19,20 +19,33 @@ public class FidelityService {
     private final Map<Long, UserPoints> userPointsMap = new ConcurrentHashMap<>();
     private final BonusPointsRepository bonusPointsRepository;
 
+    private final AtomicReference<LocalDateTime> degradeModeStart = new AtomicReference<>(null);
+
+    private final BlockingQueue<BonusRequest> pendingRequests = new LinkedBlockingQueue<>();
+
+    private static final long DEGRADE_DURATION_SECONDS = 30L;
+
     public FidelityService(BonusPointsRepository bonusPointsRepository) {
         this.bonusPointsRepository = bonusPointsRepository;
     }
 
     @Async
     public CompletableFuture<BonusPoints> processBonus(Long userId, Long orderId, Double purchaseAmount) {
-        try {
-            Thread.sleep((long) (Math.random() * 1000));
-            if (Math.random() < 0.1) {
-                throw new RuntimeException("Failed to process bonus points");
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return CompletableFuture.failedFuture(e);
+        if (isInDegradeMode()) {
+            simulateTimeDelay();
+            logger.warn("System in degraded mode: storing processing requests for later...");
+            BonusRequest request = new BonusRequest(userId, orderId, purchaseAmount);
+            pendingRequests.add(request);
+            return CompletableFuture.completedFuture(null);
+        }
+
+        if (Math.random() < 0.1) {
+            logger.error("TIME type fault detected. Entering degraded mode for 30s...");
+            activateDegradeMode();
+            simulateTimeDelay();
+            BonusRequest request = new BonusRequest(userId, orderId, purchaseAmount);
+            pendingRequests.add(request);
+            return CompletableFuture.completedFuture(null);
         }
 
         int points = (int) (purchaseAmount / 10.0);
@@ -92,5 +105,79 @@ public class FidelityService {
 
     public UserPoints getUserPoints(Long userId) {
         return userPointsMap.getOrDefault(userId, new UserPoints(userId, 0, 0));
+    }
+
+    private void activateDegradeMode() {
+        degradeModeStart.set(LocalDateTime.now());
+    }
+
+    private boolean isInDegradeMode() {
+        LocalDateTime start = degradeModeStart.get();
+        if (start == null) {
+            return false;
+        }
+        LocalDateTime end = start.plusSeconds(DEGRADE_DURATION_SECONDS);
+        boolean inDegrade = LocalDateTime.now().isBefore(end);
+        if (!inDegrade) {
+            degradeModeStart.set(null);
+            reprocessPendingRequests();
+        }
+        return inDegrade;
+    }
+
+    private void simulateTimeDelay() {
+        try {
+            Thread.sleep(2000);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    private void reprocessPendingRequests() {
+        logger.info("Exiting degraded mode. Reprocessing pending requests...");
+        BonusRequest req;
+        while ((req = pendingRequests.poll()) != null) {
+            try {
+                int points = (int) (req.purchaseAmount / 10.0);
+                BonusPoints bonusPoints = new BonusPoints();
+                bonusPoints.setUserId(req.userId);
+                bonusPoints.setOrderId(req.orderId);
+                bonusPoints.setPoints(points);
+                bonusPoints.setCreatedDate(LocalDateTime.now());
+                bonusPoints.setStatus("PENDING");
+
+                bonusPointsRepository.save(bonusPoints);
+
+                BonusRequest finalReq = req;
+                userPointsMap.compute(req.userId, (key, existingPoints) -> {
+                    if (existingPoints == null) {
+                        return new UserPoints(finalReq.userId, 0, points);
+                    }
+                    return new UserPoints(
+                            finalReq.userId,
+                            existingPoints.totalPoints(),
+                            existingPoints.pendingPoints() + points
+                    );
+                });
+
+                logger.info("Reprocessed {} bonus points for user {} and order {}",
+                        points, req.userId, req.orderId);
+
+            } catch (Exception e) {
+                logger.error("Failed to reprocess pending request: {}", e.getMessage());
+            }
+        }
+    }
+
+    private static class BonusRequest {
+        Long userId;
+        Long orderId;
+        Double purchaseAmount;
+
+        public BonusRequest(Long userId, Long orderId, Double purchaseAmount) {
+            this.userId = userId;
+            this.orderId = orderId;
+            this.purchaseAmount = purchaseAmount;
+        }
     }
 }

@@ -1,5 +1,6 @@
 package com.faulttolerance.ecommerce.service;
 
+import com.faulttolerance.ecommerce.model.BonusRequest;
 import com.faulttolerance.ecommerce.model.PurchaseRequest;
 import com.faulttolerance.ecommerce.model.PurchaseResponse;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
@@ -9,8 +10,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.math.BigDecimal;
+import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 
 @Service
@@ -44,7 +47,7 @@ public class PurchaseService {
             );
 
             var exchangeRate = restTemplate.getForObject(
-                exchangeUrl + "/rate?from=" + product.currency() + "&to=" + request.currency(),
+                exchangeUrl + "/rate?from=" + product.currency() + "&to=" + "BRL",
                 ExchangeResponse.class
             );
 
@@ -60,14 +63,21 @@ public class PurchaseService {
                 SaleResponse.class
             );
 
+            assert sale != null;
+
+            String bonusUrl = fidelityUrl + "/bonus";
+            UriComponentsBuilder uriBuilder = UriComponentsBuilder.fromHttpUrl(bonusUrl)
+                    .queryParam("userId", request.userId())
+                    .queryParam("orderId", sale.orderId)
+                    .queryParam("purchaseAmount", sale.finalPrice);
+
+            String finalUrl = uriBuilder.toUriString();
+
             Integer bonusPoints = 0;
+
             try {
-                var bonus = restTemplate.postForObject(
-                    fidelityUrl + "/bonus",
-                    sale.orderId(),
-                    BonusResponse.class
-                );
-                bonusPoints = bonus.points();
+                var response = restTemplate.getForObject(finalUrl, BonusResponse.class);
+                bonusPoints = response.points();
             } catch (Exception e) {
                 logger.warn("Failed to process bonus points, will be processed later", e);
             }
@@ -79,7 +89,7 @@ public class PurchaseService {
                 product.price(),
                 product.currency(),
                 sale.finalPrice(),
-                request.currency(),
+                "BRL",
                 bonusPoints,
                 "COMPLETED"
             );
@@ -95,7 +105,7 @@ public class PurchaseService {
             null,
             null,
             null,
-            request.currency(),
+            "BRL",
             0,
             "FAILED"
         ));
