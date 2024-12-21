@@ -7,9 +7,7 @@ public record PurchaseResponse(
     Long productId,
     Integer quantity,
     BigDecimal originalPrice,
-    String originalCurrency,
     BigDecimal convertedPrice,
-    String targetCurrency,
     Integer bonusPoints,
     String status
 ) {}

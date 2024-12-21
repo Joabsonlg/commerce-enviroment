@@ -1,0 +1,56 @@
+spring:
+  application:
+    name: ecommerce-service
+
+server:
+  port: 8080
+
+store:
+  url: http://localhost:8081
+exchange:
+  url: http://localhost:8082
+fidelity:
+  url: http://localhost:8083
+
+resilience4j.circuitbreaker:
+  instances:
+    storeProduct:
+      registerHealthIndicator: true
+      slidingWindowSize: 10
+      permittedNumberOfCallsInHalfOpenState: 3
+      failureRateThreshold: 50
+      waitDurationInOpenState: 10s
+      recordExceptions:
+        - org.springframework.web.client.HttpServerErrorException
+        - java.lang.RuntimeException
+        - java.net.SocketTimeoutException
+      ignoreExceptions:
+        - java.lang.IllegalArgumentException
+
+    storeSell:
+      registerHealthIndicator: true
+      slidingWindowSize: 10
+      permittedNumberOfCallsInHalfOpenState: 3
+      failureRateThreshold: 50
+      waitDurationInOpenState: 10s
+      recordExceptions:
+        - org.springframework.web.client.HttpServerErrorException
+        - java.lang.RuntimeException
+        - java.net.SocketTimeoutException
+      ignoreExceptions:
+        - java.lang.IllegalArgumentException
+
+resilience4j.timelimiter:
+  instances:
+    storeProduct:
+      timeoutDuration: 500ms
+
+    storeSell:
+      timeoutDuration: 500ms
+
+# Logs detalhados para Resilience4j e RestTemplate
+logging:
+  level:
+    io.github.resilience4j: DEBUG
+    org.springframework.web.client.RestTemplate: DEBUG
+    com.faulttolerance.ecommerce.service.PurchaseService: DEBUG

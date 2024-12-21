@@ -31,20 +31,14 @@ public class PurchaseController {
     @PostMapping("/buy")
     @Operation(summary = "Process a purchase", description = "Processes a purchase request and returns the result asynchronously")
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Purchase processed successfully",
-            content = @Content(schema = @Schema(implementation = PurchaseResponse.class))),
-        @ApiResponse(responseCode = "500", description = "Internal server error during purchase processing")
+            @ApiResponse(responseCode = "200", description = "Purchase processed successfully",
+                    content = @Content(schema = @Schema(implementation = PurchaseResponse.class)))
     })
     @Timed(value = "purchase.request", description = "Time taken to process purchase request")
     public CompletableFuture<ResponseEntity<PurchaseResponse>> purchase(
             @Parameter(description = "Purchase request details", required = true)
             @RequestBody PurchaseRequest request) {
         return purchaseService.processPurchase(request)
-            .thenApply(response -> {
-                if ("FAILED".equals(response.status())) {
-                    return ResponseEntity.internalServerError().body(response);
-                }
-                return ResponseEntity.ok(response);
-            });
+                .thenApply(ResponseEntity::ok);
     }
 }
