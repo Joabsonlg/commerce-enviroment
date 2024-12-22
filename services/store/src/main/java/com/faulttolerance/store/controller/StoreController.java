@@ -6,6 +6,7 @@ import com.faulttolerance.store.service.SaleService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.RequestMethod;
 
 @RestController
 @Tag(name = "Store", description = "Store operations API")
@@ -31,10 +32,10 @@ public class StoreController {
         }
     }
 
-    @GetMapping("/sell/{id}")
-    public ResponseEntity<Long> processSale(@PathVariable Long id) {
+    @PostMapping("/sell")
+    public ResponseEntity<Long> processSale(@RequestParam Long product) {
         try {
-            return ResponseEntity.ok(saleService.processSale(id));
+            return ResponseEntity.ok(saleService.processSale(product));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.notFound().build();
         } catch (IllegalStateException e) {

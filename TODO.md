@@ -1,147 +1,93 @@
-# Plano de Desenvolvimento - E-commerce Tolerante a Falhas
+# TODO List - Projeto de Tolerância a Falhas
 
-## 1. Setup Inicial
-- [x] Criar estrutura base do projeto
-- [ ] Configurar Docker e Docker Compose
-- [ ] Definir rede Docker para comunicação entre serviços
-- [x] Configurar ambiente de desenvolvimento
-- [ ] Criar Dockerfile base para os serviços
+## 1. Revisão e Ajuste dos Serviços
 
-## 2. Desenvolvimento dos Serviços
+### 1.1 Serviço E-commerce
+- [x] Implementar endpoint POST `/buy` com parâmetros:
+  - product (id)
+  - user (id)
+  - ft (boolean) - flag de tolerância a falhas
+- [x] Implementar chamadas para outros serviços:
+  - Store: GET `/product`
+  - Exchange: GET `/exchange`
+  - Store: POST `/sell`
+  - Fidelity: POST `/bonus`
+- [x] Implementar mecanismos de tolerância a falhas:
+  - Exchange: Cache do último valor válido
+  - Fidelity: Log e processamento assíncrono
+  - Store: Circuit breaker com fallback
+- [x] Configurar timeout global de 1s para todas as requisições
+- [x] Implementar circuit breaker para cada serviço
+- [x] Implementar logs detalhados para rastreamento de falhas
 
-### 2.1 Ecommerce Service (`/buy`)
-- [x] Implementar endpoint REST
-- [x] Configurar timeout global
-- [x] Implementar circuit breaker para chamadas aos serviços
-- [x] Implementar lógica de orquestração
-- [x] Adicionar logs e métricas
-- [ ] Implementar tratamento de erros
-- [ ] Testes unitários
+### 1.2 Serviço Store
+- [x] Implementar endpoint GET `/product` retornando:
+  - id
+  - name
+  - value
+- [x] Implementar endpoint POST `/sell` retornando:
+  - transaction_id (único)
+- [x] Implementar falha: Omission (p=0.2, d=0s) no Request 1
+- [x] Implementar falha: Error (p=0.1, d=5s) no Request 3
+- [ ] Implementar persistência MongoDB
 
-### 2.2 Store Service (`/product`, `/sell`)
-- [x] Implementar endpoints REST
-- [x] Criar modelo de dados para produtos
-- [x] Implementar lógica de consulta de produtos
-- [x] Implementar lógica de venda
-- [x] Adicionar logs e métricas
-- [x] Implementar tratamento de erros
-- [ ] Testes unitários
+### 1.3 Serviço Exchange
+- [x] Implementar endpoint GET `/exchange` retornando:
+  - taxa de conversão (número real positivo)
+- [x] Implementar falha: Crash (p=0.1, d=indefinido)
+- [ ] Implementar persistência MongoDB
 
-### 2.3 Exchange Service (`/exchange`)
-- [x] Implementar endpoint REST
-- [x] Configurar sistema de cache
-  - [x] Implementar TTL
-  - [x] Implementar fallback para último valor
-- [ ] Configurar replicação
-- [ ] Implementar load balancing
-- [x] Adicionar logs e métricas
-- [ ] Implementar tratamento de erros
-- [ ] Testes unitários
+### 1.4 Serviço Fidelity
+- [x] Implementar endpoint POST `/bonus` com parâmetros:
+  - user (id)
+  - bonus (inteiro)
+- [x] Implementar falha: Time (p=0.1, d=30s, delay=2s)
+- [ ] Implementar persistência MongoDB
 
-### 2.4 Fidelity Service (`/bonus`)
-- [x] Implementar endpoint REST
-- [x] Criar modelo de dados para pontos
-- [x] Implementar sistema de fila para bônus pendentes
-- [x] Implementar lógica de retry para bônus falhos
-- [x] Adicionar logs e métricas
-- [x] Implementar tratamento de erros
-- [ ] Testes unitários
+## 2. Infraestrutura
 
-## 3. Implementação de Mecanismos de Tolerância
+### 2.1 Docker
+- [ ] Revisar Dockerfiles de cada serviço
+- [ ] Otimizar docker-compose.yml
+- [ ] Configurar redes Docker corretamente
+- [ ] Configurar volumes para persistência
 
-### 3.1 Circuit Breaker
-- [x] Implementar padrão circuit breaker
-- [x] Configurar estados (fechado, aberto, meio-aberto)
-- [x] Definir thresholds
-- [x] Implementar métricas de estado
+### 2.2 Monitoramento
+- [ ] Implementar health checks
+- [ ] Configurar métricas do Actuator
+- [ ] Implementar logs centralizados
+- [ ] Configurar dashboard de monitoramento
 
-### 3.2 Cache
-- [x] Implementar sistema de cache distribuído
-- [x] Configurar TTL
-- [x] Implementar estratégia de invalidação
-- [x] Configurar armazenamento de fallback
+## 3. Documentação
 
-### 3.3 Retry Pattern
-- [x] Implementar backoff exponencial
-- [x] Configurar número máximo de tentativas
-- [x] Implementar delay entre tentativas
-- [x] Adicionar logs de retry
+### 3.1 README.md
+- [ ] Atualizar descrição do projeto
+- [ ] Adicionar instruções detalhadas de instalação
+- [ ] Documentar endpoints de cada serviço
+- [ ] Adicionar exemplos de uso
+- [ ] Documentar configurações de tolerância a falhas
 
-## 4. Cenários de Falha
-- [x] Implementar falhas programadas no Exchange Service
-- [x] Implementar latência artificial
-- [x] Implementar indisponibilidade temporária no Fidelity Service
-- [ ] Criar scripts de teste de falha
+### 3.2 Relatório
+- [ ] Documentar estratégias de tolerância a falhas
+- [ ] Explicar implementação de cada mecanismo
+- [ ] Analisar limitações das soluções
+- [ ] Discutir estratégias alternativas
+- [ ] Preparar apresentação em vídeo
 
-## 5. Monitoramento
-- [x] Configurar coleta de métricas
-  - [x] Endpoints Prometheus configurados
-  - [x] Métricas de latência (@Timed)
-  - [x] Métricas de circuit breaker
-  - [x] Métricas de cache
-  - [x] Métricas de sistema
-- [x] Implementar health checks
-  - [x] Ecommerce: Verificação de serviços externos
-  - [x] Store: Monitoramento de estoque
-  - [x] Exchange: Verificação do Redis
-  - [x] Fidelity: Monitoramento de bônus pendentes
-- [x] Configurar dashboards
-  - [x] Configuração do Prometheus
-  - [x] Configuração do Grafana
-  - [x] Dashboard de latência
-  - [x] Dashboard de circuit breaker
-  - [x] Dashboard de métricas de negócio
-- [x] Implementar alertas
-  - [x] Alertas de latência alta
-  - [x] Alertas de circuit breaker
-  - [x] Alertas de taxa de erro
-  - [x] Alertas de estoque baixo
-  - [x] Alertas de atraso no processamento de bônus
-  - [x] Alertas de serviço indisponível
-  - [x] Integração com Slack
+## 4. Testes
 
-## 6. Testes
-- [ ] Testes de integração
-- [ ] Testes de carga
-- [ ] Testes de resiliência
-- [ ] Testes de failover
-- [ ] Documentar resultados dos testes
+### 4.1 Testes Unitários
+- [ ] Implementar testes para cada serviço
+- [ ] Testar mecanismos de tolerância a falhas
+- [ ] Testar diferentes cenários de falha
 
-## 7. Documentação
-- [x] Criar guia de implantação
-  - [x] Pré-requisitos
-  - [x] Estrutura do sistema
-  - [x] Passos de implantação
-  - [x] Configuração do ambiente
-  - [x] Monitoramento e alertas
-  - [x] Manutenção e troubleshooting
-  - [x] Considerações de segurança
-- [x] Documentar APIs (Swagger/OpenAPI)
-- [ ] Criar guia de desenvolvimento
+### 4.2 Testes de Integração
+- [ ] Testar comunicação entre serviços
+- [ ] Testar comportamento com falhas
+- [ ] Testar timeout global
+- [ ] Testar circuit breaker
 
-## 8. Deploy e CI/CD
-- [x] Configurar pipeline CI/CD
-  - [x] Pipeline de CI (GitHub Actions)
-    - [x] Validação de código
-    - [x] Testes unitários
-    - [x] Build dos serviços
-    - [x] Testes de integração
-    - [x] Análise Sonar
-  - [x] Pipeline de CD (GitHub Actions)
-    - [x] Publicação de imagens Docker
-    - [x] Deploy em staging
-    - [x] Testes em staging
-    - [x] Deploy em produção
-    - [x] Notificações Slack
-- [ ] Criar scripts de deploy
-- [ ] Implementar estratégia de backup
-
-## Ordem de Desenvolvimento Sugerida
-1. Setup inicial do projeto
-2. Store Service (mais simples, base para os outros)
-3. Exchange Service (com replicação)
-4. Fidelity Service (com sistema de fila)
-5. Ecommerce Service (orquestrador)
-6. Implementação dos mecanismos de tolerância
-7. Cenários de falha e testes
-8. Monitoramento e documentação
+### 4.3 Testes de Carga
+- [ ] Testar comportamento sob carga
+- [ ] Verificar tempos de resposta
+- [ ] Analisar impacto das falhas

@@ -13,7 +13,12 @@ services:
       - store
       - exchange
       - fidelity
-      - redis
+      - mongodb
+    environment:
+      - MONGO_HOST=mongodb
+      - MONGO_PORT=27017
+      - MONGO_DATABASE=mydatabase
+      - SERVICE_NAME=ecommerce-service
 
   store:
     build:
@@ -23,8 +28,11 @@ services:
       - "8081:8081"
     networks:
       - app-network
-    depends_on:
-      - redis
+    environment:
+      - MONGO_HOST=mongodb
+      - MONGO_PORT=27017
+      - MONGO_DATABASE=mydatabase
+      - SERVICE_NAME=store-service
 
   exchange:
     build:
@@ -36,8 +44,11 @@ services:
       replicas: 3
     networks:
       - app-network
-    depends_on:
-      - redis
+    environment:
+      - MONGO_HOST=mongodb
+      - MONGO_PORT=27017
+      - MONGO_DATABASE=mydatabase
+      - SERVICE_NAME=exchange-service
 
   fidelity:
     build:
@@ -47,21 +58,24 @@ services:
       - "8083:8083"
     networks:
       - app-network
-    depends_on:
-      - redis
+    environment:
+      - MONGO_HOST=mongodb
+      - MONGO_PORT=27017
+      - MONGO_DATABASE=mydatabase
+      - SERVICE_NAME=fidelity-service
 
-  redis:
-    image: redis:7.0-alpine
+  mongodb:
+    image: mongo:latest
     ports:
-      - "6379:6379"
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
     networks:
       - app-network
-    volumes:
-      - redis-data:/data
 
 networks:
   app-network:
     driver: bridge
 
 volumes:
-  redis-data:
+  mongodb_data:

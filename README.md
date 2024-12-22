@@ -4,12 +4,12 @@
 Este projeto implementa um sistema de e-commerce distribuído com foco em tolerância a falhas. O sistema é completamente containerizado e utiliza arquitetura de microsserviços com comunicação REST.
 
 ## Características Principais
-- Arquitetura baseada em containers
+- Arquitetura baseada em microsserviços usando Spring Boot
 - Comunicação REST entre serviços
 - Timeout global de 1 segundo para todas as requisições
-- Sistema de cache para valores de câmbio em caso de falhas
-- Replicação de serviços críticos
-- Falhas programadas para teste de resiliência
+- Mecanismos de tolerância a falhas configuráveis via parâmetro
+- Persistência com MongoDB
+- Containerização com Docker
 
 ## Arquitetura
 
@@ -18,79 +18,95 @@ Este projeto implementa um sistema de e-commerce distribuído com foco em toler�
 1. **Ecommerce Service** (`/buy`)
    - Ponto de entrada principal do sistema
    - Orquestra a comunicação entre os demais serviços
-   - Implementa circuit breaker para chamadas aos serviços dependentes
+   - Implementa mecanismos de tolerância a falhas
+   - Endpoint:
+     - POST `/buy`: Processa compra com parâmetros:
+       - product: ID do produto
+       - user: ID do usuário
+       - ft: flag de tolerância a falhas (true/false)
 
 2. **Store Service** (`/product`, `/sell`)
-   - Gerencia informações dos produtos
-   - Processa vendas
+   - Gerencia produtos e vendas
    - Endpoints:
-     - `/product`: Consulta informações do produto
-     - `/sell`: Processa a venda
+     - GET `/product`: Retorna dados do produto (id, name, value)
+     - POST `/sell`: Processa venda e retorna ID único da transação
+   - Falhas programadas:
+     - Request 1 (GET /product): Omission (p=0.2, d=0s)
+     - Request 3 (POST /sell): Error (p=0.1, d=5s)
 
 3. **Exchange Service** (`/exchange`)
-   - Serviço de câmbio com múltiplas réplicas
-   - Implementa cache local para último valor em caso de falhas
-   - Tolerante a falhas através de redundância
+   - Fornece taxa de conversão de moeda
+   - Endpoint:
+     - GET `/exchange`: Retorna taxa de conversão (número real positivo)
+   - Falha programada:
+     - Request 2: Crash (p=0.1, d=indefinido)
 
 4. **Fidelity Service** (`/bonus`)
    - Gerencia programa de fidelidade
-   - Calcula e atribui bônus nas compras
-
-## Fluxo de Compra
-1. Cliente acessa `/buy`
-2. Sistema consulta `/product`
-3. Realiza conversão monetária via `/exchange`
-4. Processa venda através de `/sell`
-5. Atribui pontos de fidelidade via `/bonus` (opcional, caso falhe, a compra continua, e o bônus fica pendente pra ser realizado quando o serviço de fidelidade estiver disponível)
-6. Resposta ao cliente
+   - Endpoint:
+     - POST `/bonus`: Registra pontos com parâmetros:
+       - user: ID do usuário
+       - bonus: valor inteiro do bônus
+   - Falha programada:
+     - Request 4: Time (p=0.1, d=30s, delay=2s)
 
 ## Mecanismos de Tolerância a Falhas
 
-### Circuit Breaker
-- Implementado em chamadas entre serviços
-- Previne sobrecarga do sistema em caso de falhas
-- Estado meio-aberto para tentativas graduais de reconexão
+### Exchange Service
+- Cache do último valor válido de taxa de conversão
+- Usado quando o serviço falha (Crash)
 
-### Cache
-- Cache local para taxas de câmbio
-- TTL configurável
-- Fallback para último valor conhecido em caso de falha
+### Fidelity Service
+- Log e processamento assíncrono
+- Permite continuar a compra mesmo com falha no serviço
+- Processa bônus quando o serviço estiver disponível
 
-### Timeout
-- Timeout global de 1 segundo
-- Previne bloqueio de recursos por tempo indefinido
-- Garante resposta rápida mesmo em cenários de falha
+### Store Service
+- Circuit Breaker com Resilience4j
+- Retry com backoff exponencial
+- Cache local para dados de produtos
+- Fallback para últimos valores conhecidos
 
-### Replicação
-- Múltiplas instâncias do serviço de câmbio
-- Load balancing entre réplicas
-- Failover automático em caso de falha
+## Requisitos Técnicos
 
-### Retry Pattern
-- Tentativas automáticas em caso de falhas temporárias
-- Backoff exponencial para evitar sobrecarga
-- Número máximo de tentativas configurável
+### Pré-requisitos
+- Docker e Docker Compose
+- Java 17
+- Maven
 
-## Cenários de Falha Programados
-- Latência alta no serviço de câmbio
-- Indisponibilidade temporária do serviço de fidelidade
-- Erro intermitente no processamento de vendas
+### Configuração
+1. Clone o repositório
+```bash
+git clone [URL_DO_REPOSITORIO]
+```
+
+2. Build dos serviços
+```bash
+mvn clean package -DskipTests
+```
+
+3. Iniciar os containers
+```bash
+docker-compose up --build
+```
+
+### Testes
+Para testar o sistema, envie uma requisição POST para `http://localhost:8080/buy`:
+
+```json
+{
+    "product": "123",
+    "user": "456",
+    "ft": true
+}
+```
 
 ## Monitoramento
-- Métricas de disponibilidade por serviço
-- Tempo de resposta
-- Taxa de erro
+- Health checks via Spring Actuator
+- Métricas do Resilience4j
+- Logs centralizados
 - Estado dos circuit breakers
-- Hit rate do cache
 
-## Documentação
-- [TODO.md](TODO.md) - Lista de tarefas e progresso do projeto
-- [DEPLOYMENT.md](DEPLOYMENT.md) - Guia completo de implantação do sistema
-- [DEVELOPMENT.md](DEVELOPMENT.md) - Guia de desenvolvimento e boas práticas
-
-## Próximos Passos
-- Implementação dos serviços
-- Configuração dos containers
-- Implementação dos mecanismos de tolerância a falhas
-- Testes de resiliência
-- Documentação das APIs
+## Documentação Adicional
+- [ESPECIFICATION.md](ESPECIFICATION.md) - Especificação detalhada do projeto
+- [TODO.md](TODO.md) - Lista de tarefas e progresso

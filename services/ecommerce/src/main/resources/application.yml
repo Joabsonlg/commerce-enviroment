@@ -1,52 +1,63 @@
 spring:
   application:
-    name: ecommerce-service
+    name: ecommerce
+  data:
+    mongodb:
+      host: ${MONGO_HOST:localhost}
+      port: ${MONGO_PORT:27017}
+      database: ${MONGO_DATABASE:mydatabase}
 
 server:
   port: 8080
 
 store:
-  url: http://localhost:8081
+  url: http://store:8081
 exchange:
-  url: http://localhost:8082
+  url: http://exchange:8082
 fidelity:
-  url: http://localhost:8083
+  url: http://fidelity:8083
 
-resilience4j.circuitbreaker:
-  instances:
-    storeProduct:
-      registerHealthIndicator: true
-      slidingWindowSize: 10
-      permittedNumberOfCallsInHalfOpenState: 3
-      failureRateThreshold: 50
-      waitDurationInOpenState: 10s
-      recordExceptions:
-        - org.springframework.web.client.HttpServerErrorException
-        - java.lang.RuntimeException
-        - java.net.SocketTimeoutException
-      ignoreExceptions:
-        - java.lang.IllegalArgumentException
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    tags:
+      application: ${spring.application.name}
 
-    storeSell:
-      registerHealthIndicator: true
-      slidingWindowSize: 10
-      permittedNumberOfCallsInHalfOpenState: 3
-      failureRateThreshold: 50
-      waitDurationInOpenState: 10s
-      recordExceptions:
-        - org.springframework.web.client.HttpServerErrorException
-        - java.lang.RuntimeException
-        - java.net.SocketTimeoutException
-      ignoreExceptions:
-        - java.lang.IllegalArgumentException
-
-resilience4j.timelimiter:
-  instances:
-    storeProduct:
-      timeoutDuration: 500ms
-
-    storeSell:
-      timeoutDuration: 500ms
+resilience4j:
+  circuitbreaker:
+    instances:
+      default:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+      storeProduct:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 5s
+      exchangeRate:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 30s
+      storeSale:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 5s
+  timelimiter:
+    instances:
+      default:
+        timeoutDuration: 1s
+      storeProduct:
+        timeoutDuration: 1s
+      exchangeRate:
+        timeoutDuration: 1s
+      storeSale:
+        timeoutDuration: 1s
 
 # Logs detalhados para Resilience4j e RestTemplate
 logging:

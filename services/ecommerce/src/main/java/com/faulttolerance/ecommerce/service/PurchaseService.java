@@ -6,13 +6,11 @@ import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.timelimiter.annotation.TimeLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Lazy;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.LinkedList;
 import java.util.List;
@@ -34,149 +32,174 @@ public class PurchaseService {
     private String fidelityUrl;
 
     private final RestTemplate restTemplate;
-
-    private volatile BigDecimal lastKnownRate = BigDecimal.ONE;
-
-    private final AtomicReference<LocalDateTime> degradeModeStart = new AtomicReference<>(null);
-    private static final long FAILURE_DURATION_SECONDS = 30L;
-    private static final long FAILURE_DELAY_MILLIS = 2000L;
+    private final AtomicReference<Double> lastKnownRate = new AtomicReference<>(1.0);
+    private final ExecutorService executorService = Executors.newCachedThreadPool();
 
     private final List<FidelityRequest> pendingFidelityRequests = new LinkedList<>();
+    private final AtomicReference<LocalDateTime> degradeModeStart = new AtomicReference<>(null);
+    private static final long FAILURE_DURATION_SECONDS = 30L;
 
-    private final Executor fidelityExecutor = Executors.newFixedThreadPool(10);
-
-    private final PurchaseService self;
-
-    @Autowired
-    public PurchaseService(RestTemplate restTemplate, @Lazy PurchaseService self) {
+    public PurchaseService(RestTemplate restTemplate) {
         this.restTemplate = restTemplate;
-        this.self = self;
+        // Inicia o processador de bônus pendentes
+        startPendingBonusProcessor();
     }
 
     public CompletableFuture<PurchaseResponse> processPurchase(PurchaseRequest request) {
-        logger.info("Processing purchase for product: {}", request.productId());
+        logger.info("Processing purchase for product: {}, user: {}, ft: {}",
+            request.productId(), request.userId(), request.ft());
 
-        return self.getProductWithResilience(request.productId())
-                .thenCompose(product -> {
-                    BigDecimal exchangeRate = getExchangeRateWithResilience();
-                    return self.processSaleWithResilience(request.productId())
-                            .thenApply(orderId -> {
-                                int bonusValue = calculateBonusValue(product.price(), request.quantity());
-                                processFidelityBonusAsync(request.userId(), bonusValue);
-                                return new PurchaseResponse(
-                                        orderId,
-                                        request.productId(),
-                                        request.quantity(),
-                                        product.price(),
-                                        product.price().multiply(exchangeRate),
-                                        0,
-                                        "COMPLETED"
-                                );
-                            });
-                })
-                .exceptionally(ex -> {
-                    logger.error("Exception in processPurchase: {}", ex.toString());
-                    return new PurchaseResponse(null, request.productId(), request.quantity(), null, null, 0, "FAILED");
-                });
-    }
-
-    @CircuitBreaker(
-            name = "storeProduct",
-            fallbackMethod = "fallbackProduct"
-    )
-    @TimeLimiter(name = "storeProduct") // 500ms de timeout
-    public CompletableFuture<ProductResponse> getProductWithResilience(Long productId) {
         return CompletableFuture.supplyAsync(() -> {
-            String url = storeUrl + "/product/" + productId;
             try {
-                ProductResponse p = restTemplate.getForObject(url, ProductResponse.class);
-                if (p == null) {
-                    throw new RuntimeException("Product is null from store");
-                }
-                return p;
+                // 1. Consulta produto (Request 1)
+                var product = getProduct(request.productId(), request.ft());
+
+                // 2. Obtém taxa de câmbio (Request 2)
+                var exchangeRate = getExchangeRate(request.ft());
+
+                // 3. Processa venda (Request 3)
+                var transactionId = processSale(request.productId(), request.ft());
+
+                // 4. Registra bônus (Request 4)
+                int bonus = (int) Math.round(product.value());
+                registerBonus(request.userId(), bonus, request.ft());
+
+                return new PurchaseResponse(transactionId);
             } catch (Exception e) {
-                throw new RuntimeException("Failed to retrieve product with id " + productId, e);
+                logger.error("Failed to process purchase", e);
+                throw e;
             }
-        });
+        }, executorService);
     }
 
-    private CompletableFuture<ProductResponse> fallbackProduct(Long productId, Throwable t) {
-        logger.warn("Falling back to default product. productId={}, error={}", productId, t.toString());
-        ProductResponse defaultProduct = new ProductResponse(
-                productId,
-                "Default Product",
-                BigDecimal.valueOf(9999.99)
-        );
-        return CompletableFuture.completedFuture(defaultProduct);
+    @CircuitBreaker(name = "storeProduct", fallbackMethod = "fallbackProduct")
+    @TimeLimiter(name = "storeProduct")
+    private ProductResponse getProduct(Long productId, boolean ft) {
+        String url = storeUrl + "/product/" + productId;
+        try {
+            return restTemplate.getForObject(url, ProductResponse.class);
+        } catch (Exception e) {
+            if (ft) {
+                return fallbackProduct(productId, e, ft);
+            }
+            throw e;
+        }
     }
 
-    private BigDecimal getExchangeRateWithResilience() {
+    private ProductResponse fallbackProduct(Long productId, Throwable t, boolean ft) {
+        logger.warn("Product service failed, using fallback. Error: {}", t.getMessage());
+        return new ProductResponse(productId, "Fallback Product", 0.0);
+    }
+
+    @CircuitBreaker(name = "exchangeRate", fallbackMethod = "fallbackExchangeRate")
+    @TimeLimiter(name = "exchangeRate")
+    private double getExchangeRate(boolean ft) {
         try {
             Double rate = restTemplate.getForObject(exchangeUrl + "/exchange", Double.class);
             if (rate != null && rate > 0) {
-                lastKnownRate = BigDecimal.valueOf(rate);
+                lastKnownRate.set(rate);
+                return rate;
             }
+            throw new RuntimeException("Invalid exchange rate");
         } catch (Exception e) {
-            logger.warn("Exchange failed => using lastKnownRate={}. Exception={}", lastKnownRate, e.toString());
+            if (ft) {
+                return fallbackExchangeRate(e, ft);
+            }
+            throw e;
         }
-        return lastKnownRate;
     }
 
-    @CircuitBreaker(
-            name = "storeSell",
-            fallbackMethod = "fallbackSell"
-    )
-    @TimeLimiter(name = "storeSell") // 500ms de timeout
-    public CompletableFuture<Long> processSaleWithResilience(Long productId) {
-        return CompletableFuture.supplyAsync(() -> {
-            String url = storeUrl + "/sell/" + productId;
-            try {
-                Long orderId = restTemplate.getForObject(url, Long.class);
-                if (orderId == null) {
-                    throw new RuntimeException("Sell returned null orderId");
-                }
-                return orderId;
-            } catch (Exception e) {
-                throw new RuntimeException("Failed to process sale for productId " + productId, e);
+    private double fallbackExchangeRate(Throwable t, boolean ft) {
+        logger.warn("Exchange service failed, using last known rate: {}", lastKnownRate.get());
+        return lastKnownRate.get();
+    }
+
+    @CircuitBreaker(name = "storeSale", fallbackMethod = "fallbackSale")
+    @TimeLimiter(name = "storeSale")
+    private String processSale(Long productId, boolean ft) {
+        String url = storeUrl + "/sell?product=" + productId;
+        try {
+            var response = restTemplate.postForEntity(url, null, String.class);
+            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                return response.getBody();
             }
-        });
+            throw new RuntimeException("Invalid response from store service");
+        } catch (Exception e) {
+            if (ft) {
+                return fallbackSale(productId, e, ft);
+            }
+            throw e;
+        }
     }
 
-    private CompletableFuture<Long> fallbackSell(Long productId, Throwable t) {
-        logger.warn("Falling back to a fake sale. productId={}, error={}", productId, t.toString());
-        Long fakeOrderId = Math.abs(UUID.randomUUID().getMostSignificantBits());
-        return CompletableFuture.completedFuture(fakeOrderId);
+    private String fallbackSale(Long productId, Throwable t, boolean ft) {
+        logger.warn("Store service failed, using fallback transaction ID. Error: {}", t.getMessage());
+        return UUID.randomUUID().toString();
     }
 
-    private void processFidelityBonusAsync(Long userId, int bonusValue) {
+    private void registerBonus(Long userId, int bonus, boolean ft) {
+        if (!ft) {
+            String url = String.format("%s/bonus?user=%s&bonus=%d", fidelityUrl, userId, bonus);
+            restTemplate.postForEntity(url, null, Void.class);
+            return;
+        }
+
         CompletableFuture.runAsync(() -> {
-            if (isInDegradeMode()) {
-                logger.warn("Fidelity em modo degradado => armazenando requisição para depois: user={}, bonus={}", userId, bonusValue);
-                storeFidelityRequest(userId, bonusValue);
-                return;
-            }
-
-            CompletableFuture<Void> fidelityTask = CompletableFuture.runAsync(() -> {
-                try {
-                    restTemplate.postForObject(
-                            fidelityUrl + "/bonus?user=" + userId + "&bonus=" + bonusValue,
-                            null,
-                            Void.class
-                    );
-                    logger.info("Bônus de fidelidade processado com sucesso: user={}, bonus={}", userId, bonusValue);
-                } catch (Exception e) {
-                    logger.warn("Erro inesperado na requisição de fidelidade => armazenando para depois. user={}, bonus={}", userId, bonusValue, e);
-                    storeFidelityRequest(userId, bonusValue);
-                }
-            }, fidelityExecutor);
-
             try {
-                fidelityTask.get(1, TimeUnit.SECONDS);
+                if (isInDegradeMode()) {
+                    logger.warn("Fidelity in degrade mode => storing request for later: user={}, bonus={}", userId, bonus);
+                    storeFidelityRequest(userId, bonus);
+                    return;
+                }
+
+                String url = String.format("%s/bonus?user=%s&bonus=%d", fidelityUrl, userId, bonus);
+                restTemplate.postForEntity(url, null, Void.class);
+                logger.info("Bonus registered successfully for user: {}, bonus: {}", userId, bonus);
             } catch (Exception e) {
-                logger.warn("Timeout ao processar bônus de fidelidade => armazenando para depois. user={}, bonus={}", userId, bonusValue, e);
-                storeFidelityRequest(userId, bonusValue);
+                logger.warn("Failed to register bonus, storing for retry. User: {}, bonus: {}", userId, bonus);
+                storeFidelityRequest(userId, bonus);
+                activateDegradeMode();
             }
-        }, fidelityExecutor);
+        }, executorService);
+    }
+
+    private void startPendingBonusProcessor() {
+        CompletableFuture.runAsync(() -> {
+            while (true) {
+                try {
+                    if (!isInDegradeMode() && !pendingFidelityRequests.isEmpty()) {
+                        processPendingBonuses();
+                    }
+                    Thread.sleep(5000); // Verifica a cada 5 segundos
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+        }, executorService);
+    }
+
+    private void processPendingBonuses() {
+        List<FidelityRequest> successfulRequests = new LinkedList<>();
+
+        for (FidelityRequest request : pendingFidelityRequests) {
+            try {
+                String url = String.format("%s/bonus?user=%s&bonus=%d",
+                    fidelityUrl, request.userId(), request.bonus());
+
+                restTemplate.postForEntity(url, null, Void.class);
+                successfulRequests.add(request);
+                logger.info("Processed pending bonus: user={}, bonus={}",
+                    request.userId(), request.bonus());
+            } catch (Exception e) {
+                logger.warn("Failed to process pending bonus: user={}, bonus={}",
+                    request.userId(), request.bonus());
+                activateDegradeMode();
+                break;
+            }
+        }
+
+        pendingFidelityRequests.removeAll(successfulRequests);
     }
 
     private boolean isInDegradeMode() {
@@ -188,30 +211,12 @@ public class PurchaseService {
         degradeModeStart.set(LocalDateTime.now());
     }
 
-    private void simulateTimeDelay() {
-        try {
-            Thread.sleep(FAILURE_DELAY_MILLIS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-    }
-
-    private void storeFidelityRequest(Long userId, int bonusValue) {
-        pendingFidelityRequests.add(new FidelityRequest(userId, bonusValue));
+    private void storeFidelityRequest(Long userId, int bonus) {
+        pendingFidelityRequests.add(new FidelityRequest(userId, bonus));
         logger.info("Fidelity request stored => user={}, bonus={}. Pending count={}",
-                userId, bonusValue, pendingFidelityRequests.size());
+            userId, bonus, pendingFidelityRequests.size());
     }
 
-    private int calculateBonusValue(BigDecimal price, Integer quantity) {
-        if (price == null || quantity == null) {
-            return 0;
-        }
-        return price.multiply(BigDecimal.valueOf(quantity)).intValue();
-    }
-
-    // =====================
-    // RECORDS
-    // =====================
-    private record ProductResponse(Long id, String name, BigDecimal price) {}
+    private record ProductResponse(Long id, String name, Double value) {}
     private record FidelityRequest(Long userId, int bonus) {}
 }

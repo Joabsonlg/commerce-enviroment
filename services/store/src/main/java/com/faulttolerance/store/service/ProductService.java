@@ -23,14 +23,4 @@ public class ProductService {
         }
         return products.get(id);
     }
-
-    public void updateStock(Long productId, Integer quantity) {
-        products.computeIfPresent(productId, (pid, product) ->
-                new Product(
-                        product.id(),
-                        product.name(),
-                        product.price()
-                )
-        );
-    }
 }

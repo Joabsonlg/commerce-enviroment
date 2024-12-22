@@ -2,7 +2,7 @@
 
 ## Visão Geral da Arquitetura
 
-O sistema é composto por quatro microserviços principais:
+O sistema é composto por cinco microserviços principais:
 
 1. **Ecommerce Service** (Orquestrador)
    - Gerencia o fluxo de compras
@@ -16,13 +16,16 @@ O sistema é composto por quatro microserviços principais:
 
 3. **Exchange Service**
    - Fornece taxas de câmbio
-   - Implementa cache com Redis
    - Possui fallback para indisponibilidade
 
 4. **Fidelity Service**
    - Gerencia pontos de fidelidade
    - Processa bônus assincronamente
    - Implementa retry pattern
+
+5. **Monitoring Service**
+   - Fornece monitoramento da aplicação
+   - Utiliza Prometheus, Grafana e Alertmanager
 
 ## Ambiente de Desenvolvimento
 
@@ -78,16 +81,7 @@ O sistema é composto por quatro microserviços principais:
    cd tf-workspace
    ```
 
-2. **Instalação do Redis**
-   ```bash
-   # Inicie o Redis via Docker
-   docker run --name redis -p 6379:6379 -d redis:latest
-   
-   # Verifique se o Redis está rodando
-   docker ps
-   ```
-
-3. **Build do Projeto**
+2. **Build do Projeto**
    ```bash
    # Build completo com testes
    mvn clean install
