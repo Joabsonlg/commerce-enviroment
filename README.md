@@ -8,7 +8,6 @@ Este projeto implementa um sistema de e-commerce distribuído com foco em toler�
 - Comunicação REST entre serviços
 - Timeout global de 1 segundo para todas as requisições
 - Mecanismos de tolerância a falhas configuráveis via parâmetro
-- Persistência com MongoDB
 - Containerização com Docker
 
 ## Arquitetura
@@ -67,46 +66,31 @@ Este projeto implementa um sistema de e-commerce distribuído com foco em toler�
 - Cache local para dados de produtos
 - Fallback para últimos valores conhecidos
 
-## Requisitos Técnicos
+## Execução do Sistema
 
-### Pré-requisitos
-- Docker e Docker Compose
-- Java 17
-- Maven
+Para instruções detalhadas sobre como executar o sistema, consulte o arquivo [DEVELOPMENT.md](DEVELOPMENT.md).
 
-### Configuração
-1. Clone o repositório
+## Testes
+
+Para testar o sistema após a inicialização:
+
 ```bash
-git clone [URL_DO_REPOSITORIO]
+# Teste sem tolerância a falhas
+curl -X POST "http://localhost:8080/buy?product=1&user=1&ft=false"
+
+# Teste com tolerância a falhas
+curl -X POST "http://localhost:8080/buy?product=1&user=1&ft=true"
 ```
-
-2. Build dos serviços
-```bash
-mvn clean package -DskipTests
-```
-
-3. Iniciar os containers
-```bash
-docker-compose up --build
-```
-
-### Testes
-Para testar o sistema, envie uma requisição POST para `http://localhost:8080/buy`:
-
-```json
-{
-    "product": "123",
-    "user": "456",
-    "ft": true
-}
-```
-
-## Monitoramento
-- Health checks via Spring Actuator
-- Métricas do Resilience4j
-- Logs centralizados
-- Estado dos circuit breakers
 
 ## Documentação Adicional
-- [ESPECIFICATION.md](ESPECIFICATION.md) - Especificação detalhada do projeto
-- [TODO.md](TODO.md) - Lista de tarefas e progresso
+
+- [DEVELOPMENT.md](DEVELOPMENT.md): Guia completo de desenvolvimento e configuração
+- [REPORT.md](REPORT.md): Detalhes da implementação e análise do sistema
+
+## Contribuição
+
+1. Fork o projeto
+2. Crie uma branch para sua feature (`git checkout -b feature/AmazingFeature`)
+3. Commit suas mudanças (`git commit -m 'Add some AmazingFeature'`)
+4. Push para a branch (`git push origin feature/AmazingFeature`)
+5. Abra um Pull Request

@@ -1,260 +1,158 @@
 # Guia de Desenvolvimento - Sistema E-commerce Tolerante a Falhas
 
-## Visão Geral da Arquitetura
+## Requisitos do Sistema
 
-O sistema é composto por cinco microserviços principais:
-
-1. **Ecommerce Service** (Orquestrador)
-   - Gerencia o fluxo de compras
-   - Integra com outros serviços
-   - Implementa circuit breakers
-
-2. **Store Service**
-   - Gerencia produtos e estoque
-   - Processa vendas
-   - Mantém consistência do inventário
-
-3. **Exchange Service**
-   - Fornece taxas de câmbio
-   - Possui fallback para indisponibilidade
-
-4. **Fidelity Service**
-   - Gerencia pontos de fidelidade
-   - Processa bônus assincronamente
-   - Implementa retry pattern
-
-5. **Monitoring Service**
-   - Fornece monitoramento da aplicação
-   - Utiliza Prometheus, Grafana e Alertmanager
-
-## Ambiente de Desenvolvimento
-
-### Requisitos
-
-- Java 17
-- Maven 3.8+
+### Software Necessário
 - Docker Desktop
 - Git
 
-### Instalação do Docker Desktop (Windows)
+### Requisitos do Docker Desktop (Windows)
+- Windows 10/11 64-bit: Pro, Enterprise, ou Education
+- WSL 2 habilitado
+- Virtualização habilitada na BIOS
 
-1. **Requisitos do Sistema**
-   - Windows 10/11 64-bit: Pro, Enterprise, ou Education
-   - WSL 2
-   - Virtualização habilitada
+## Configuração do Ambiente
 
-2. **Instalar WSL 2**
-   ```powershell
-   # Abra o PowerShell como Administrador e execute:
-   wsl --install
-   ```
+### 1. Instalação do Docker Desktop
+1. Baixe o Docker Desktop do [site oficial](https://www.docker.com/products/docker-desktop)
+2. Execute o instalador
+3. Siga as instruções de instalação
+4. Reinicie o computador se solicitado
 
-3. **Habilitar Virtualização**
-   - Reinicie o computador
-   - Entre na BIOS (geralmente tecla Delete ou F2 durante o boot)
-   - Procure e habilite opções como:
-     - "Virtualization Technology"
-     - "VT-x" (Intel)
-     - "AMD-V" ou "SVM" (AMD)
-   - Salve e reinicie
+### 2. Verificação da Instalação
+```bash
+docker --version
+docker-compose --version
+```
 
-4. **Instalar Docker Desktop**
-   - Baixe em: https://www.docker.com/products/docker-desktop/
-   - Execute o instalador
-   - Siga o assistente de instalação
-   - Reinicie o computador
+## Executando o Sistema
 
-5. **Verificar Instalação**
-   ```bash
-   # Verificar versão do Docker
-   docker --version
+### 1. Clone o Repositório
+```bash
+git clone https://github.com/Joabsonlg/commerce-enviroment.git
+cd commerce-enviroment
+```
 
-   # Testar instalação
-   docker run hello-world
-   ```
+### 2. Realizar Packaging dos Serviços
+```bash
+# Na raiz do projeto
+cd services
+mvn clean package
+cd ..
+```
 
-### Setup do Ambiente
+### 3. Iniciando os Serviços
+```bash
+# Na raiz do projeto
+docker-compose up --build
+```
 
-1. **Clone do Repositório**
-   ```bash
-   git clone <repository-url>
-   cd tf-workspace
-   ```
+Isso irá:
+1. Construir as imagens dos serviços
+2. Criar a rede Docker
+3. Iniciar todos os containers
+4. Configurar as dependências entre serviços
 
-2. **Build do Projeto**
-   ```bash
-   # Build completo com testes
-   mvn clean install
+### 4. Verificando os Serviços
+Após a inicialização, verifique se todos os serviços estão rodando:
+```bash
+docker-compose ps
+```
 
-   # Build rápido sem testes
-   mvn clean install -DskipTests
-   ```
+Os serviços estarão disponíveis nas seguintes portas:
+- E-commerce Service: http://localhost:8080
+- Store Service: http://localhost:8081
+- Exchange Service: http://localhost:8082
+- Fidelity Service: http://localhost:8083
 
-### Executando os Serviços Localmente
+## Testando o Sistema
 
-1. **Store Service (Porta 8081)**
-   ```bash
-   # Via Maven
-   cd services/store
-   mvn spring-boot:run
+### 1. Teste Básico (Sem Falhas)
+```bash
+curl -X POST "http://localhost:8080/buy?product=1&user=1&ft=false"
+```
 
-   # Via Java
-   cd services/store/target
-   java -jar store-1.0.0.jar
-   ```
-   - Swagger UI: http://localhost:8081/swagger-ui.html
-   - Health Check: http://localhost:8081/actuator/health
-   - Métricas: http://localhost:8081/actuator/prometheus
+### 2. Teste com Tolerância a Falhas
+```bash
+curl -X POST "http://localhost:8080/buy?product=1&user=1&ft=true"
+```
 
-2. **Exchange Service (Porta 8082)**
-   ```bash
-   # Via Maven
-   cd services/exchange
-   mvn spring-boot:run
+### 3. Teste de Falhas Específicas
 
-   # Via Java
-   cd services/exchange/target
-   java -jar exchange-1.0.0.jar
-   ```
-   - Swagger UI: http://localhost:8082/swagger-ui.html
-   - Health Check: http://localhost:8082/actuator/health
-   - Métricas: http://localhost:8082/actuator/prometheus
+#### Store Service - Omission (20%)
+```bash
+# Fazer várias requisições para ver a falha
+for i in {1..10}; do
+    curl -X POST "http://localhost:8080/buy?product=1&user=1&ft=true"
+    sleep 1
+done
+```
 
-3. **Fidelity Service (Porta 8083)**
-   ```bash
-   # Via Maven
-   cd services/fidelity
-   mvn spring-boot:run
+#### Exchange Service - Crash (10%)
+```bash
+# O serviço pode entrar em crash
+curl -X POST "http://localhost:8080/buy?product=1&user=1&ft=true"
+```
 
-   # Via Java
-   cd services/fidelity/target
-   java -jar fidelity-1.0.0.jar
-   ```
-   - Swagger UI: http://localhost:8083/swagger-ui.html
-   - Health Check: http://localhost:8083/actuator/health
-   - Métricas: http://localhost:8083/actuator/prometheus
+#### Fidelity Service - Time (10%, 30s)
+```bash
+# Observe o processamento assíncrono
+curl -X POST "http://localhost:8080/buy?product=1&user=1&ft=true"
+```
 
-4. **Ecommerce Service (Porta 8080)**
-   ```bash
-   # Via Maven
-   cd services/ecommerce
-   mvn spring-boot:run
+## Monitoramento
 
-   # Via Java
-   cd services/ecommerce/target
-   java -jar ecommerce-1.0.0.jar
-   ```
-   - Swagger UI: http://localhost:8080/swagger-ui.html
-   - Health Check: http://localhost:8080/actuator/health
-   - Métricas: http://localhost:8080/actuator/prometheus
+### Logs dos Serviços
+```bash
+# Ver logs de um serviço específico
+docker-compose logs -f ecommerce
 
-### Ordem de Inicialização Recomendada
-1. Redis (via Docker Desktop)
-2. Store Service
-3. Exchange Service
-4. Fidelity Service
-5. Ecommerce Service
+# Ver logs de todos os serviços
+docker-compose logs -f
+```
 
-### Verificação do Ambiente
+### Status dos Containers
+```bash
+docker-compose ps
+```
 
-1. **Verificar Status dos Serviços**
-   ```bash
-   # Verificar Store Service
-   curl http://localhost:8081/actuator/health
+## Troubleshooting
 
-   # Verificar Exchange Service
-   curl http://localhost:8082/actuator/health
+### Problemas Comuns
 
-   # Verificar Fidelity Service
-   curl http://localhost:8083/actuator/health
+1. **Portas em Uso**
+```bash
+# Verificar portas em uso
+netstat -ano | findstr :8080
+netstat -ano | findstr :8081
+netstat -ano | findstr :8082
+netstat -ano | findstr :8083
+```
 
-   # Verificar Ecommerce Service
-   curl http://localhost:8080/actuator/health
-   ```
+2. **Containers não Iniciam**
+```bash
+# Parar todos os containers
+docker-compose down
 
-2. **Verificar Redis**
-   ```bash
-   # Via Docker
-   docker exec -it redis redis-cli ping
-   # Deve retornar: PONG
-   ```
+# Remover volumes
+docker-compose down -v
 
-### Análise de Código
+# Reconstruir e iniciar
+docker-compose up --build
+```
 
-1. **Executar Checkstyle**
-   ```bash
-   mvn checkstyle:check
-   ```
-   - Relatório: `target/site/checkstyle.html`
+3. **Problemas de Rede**
+```bash
+# Verificar rede Docker
+docker network ls
+docker network inspect tf-workspace_default
+```
 
-2. **Executar SpotBugs**
-   ```bash
-   mvn spotbugs:check
-   ```
-   - Relatório: `target/spotbugsXml.xml`
+## Parando o Sistema
+```bash
+# Para parar mantendo os volumes
+docker-compose down
 
-3. **Executar Todos os Testes**
-   ```bash
-   mvn test
-   ```
-
-### Troubleshooting
-
-1. **Docker/Redis**
-   ```bash
-   # Verificar status do Docker
-   docker ps
-   docker info
-
-   # Se o Docker não estiver rodando:
-   # 1. Abra o Docker Desktop
-   # 2. Aguarde a inicialização completa
-   # 3. Verifique se o ícone do Docker na bandeja está verde
-   ```
-
-2. **Portas em Uso**
-   ```bash
-   # Windows
-   netstat -ano | findstr :8080
-   netstat -ano | findstr :8081
-   netstat -ano | findstr :8082
-   netstat -ano | findstr :8083
-   ```
-
-3. **Logs dos Serviços**
-   - Logs são escritos em `logs/` de cada serviço
-   - Nível de log pode ser ajustado em `application.properties`
-
-4. **Redis não Conecta**
-   ```bash
-   # Verificar status do container
-   docker ps -a | grep redis
-   
-   # Reiniciar Redis se necessário
-   docker restart redis
-
-   # Se precisar remover e recriar
-   docker rm -f redis
-   docker run --name redis -p 6379:6379 -d redis:latest
-   ```
-
-5. **Limpeza do Ambiente**
-   ```bash
-   # Parar todos os serviços (Windows)
-   taskkill /F /IM java.exe
-   
-   # Parar Redis
-   docker stop redis
-   
-   # Limpar builds
-   mvn clean
-   ```
-
-## Referências
-
-- [Docker Desktop Installation Guide](https://docs.docker.com/desktop/install/windows-install/)
-- [Spring Boot Documentation](https://docs.spring.io/spring-boot/docs/current/reference/html/)
-- [Spring Cloud Circuit Breaker](https://spring.io/projects/spring-cloud-circuitbreaker)
-- [Redis Documentation](https://redis.io/documentation)
-- [Resilience4j Documentation](https://resilience4j.readme.io/docs)
-- [Swagger/OpenAPI Documentation](https://swagger.io/docs/)
+# Para parar e remover volumes
+docker-compose down -v
+```
