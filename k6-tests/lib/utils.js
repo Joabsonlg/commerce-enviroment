@@ -10,12 +10,22 @@ export const BASE_URL = 'http://localhost:8080';
 
 // Helper functions
 export function makeRequest(http, url, params = {}, ft = false) {
-    // Construir query string manualmente
-    const queryParams = Object.entries({ ...params, ft: ft })
-        .map(([key, value]) => `${key}=${value}`)
-        .join('&');
+    const headers = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+    };
 
-    const response = http.post(`${url}?${queryParams}`);
+    // Movendo os parâmetros para o corpo da requisição
+    const payload = {
+        ...params,
+        ft: ft
+    };
+
+    const response = http.post(
+        url,
+        JSON.stringify(payload),
+        { headers }
+    );
     
     // Check if request was successful
     const success = check(response, {
