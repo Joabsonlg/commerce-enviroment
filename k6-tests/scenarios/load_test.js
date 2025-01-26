@@ -18,20 +18,19 @@ export const options = {
 
 // Default function that defines VU behavior
 export default function (data) {
+    const params = {
+        product: 1,  // ID do produto (1 = Laptop)
+        user: 1      // ID do usuário
+    };
+
     group('Without Fault Tolerance', function () {
-        makeRequest(http, `${BASE_URL}/buy`, {
-            product: data.productId,
-            user: data.userId
-        }, false);
+        makeRequest(http, `${BASE_URL}/buy`, params, false);
     });
     
     sleep(1);  // Wait 1 second between iterations
     
     group('With Fault Tolerance', function () {
-        makeRequest(http, `${BASE_URL}/buy`, {
-            product: data.productId,
-            user: data.userId
-        }, true);
+        makeRequest(http, `${BASE_URL}/buy`, params, true);
     });
     
     sleep(1);  // Wait 1 second between iterations

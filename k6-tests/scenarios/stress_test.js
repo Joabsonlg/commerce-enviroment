@@ -26,20 +26,19 @@ export const options = {
 
 // Default function that defines VU behavior
 export default function (data) {
+    const params = {
+        product: 1,  // ID do produto (1 = Laptop)
+        user: 1      // ID do usuário
+    };
+
     group('Without Fault Tolerance - High Load', function () {
-        makeRequest(http, `${BASE_URL}/buy`, {
-            product: data.productId,
-            user: data.userId
-        }, false);
+        makeRequest(http, `${BASE_URL}/buy`, params, false);
     });
     
     sleep(0.5);  // Reduced sleep time for higher load
     
     group('With Fault Tolerance - High Load', function () {
-        makeRequest(http, `${BASE_URL}/buy`, {
-            product: data.productId,
-            user: data.userId
-        }, true);
+        makeRequest(http, `${BASE_URL}/buy`, params, true);
     });
     
     sleep(0.5);  // Reduced sleep time for higher load

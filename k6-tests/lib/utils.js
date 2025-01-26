@@ -15,9 +15,10 @@ export function makeRequest(http, url, params = {}, ft = false) {
         'Accept': 'application/json'
     };
 
-    // Movendo os parâmetros para o corpo da requisição
+    // Convertendo os parâmetros para o formato esperado pelo PurchaseRequest
     const payload = {
-        ...params,
+        userId: params.user,
+        productId: params.product,
         ft: ft
     };
 
